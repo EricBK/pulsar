@@ -85,7 +85,10 @@ def save_pulsar_attrs(cand_file_path, file_fotmat,data_augmentation = False):
     if  '.pfd' in file_format:
         child_dirs = ['p309p_pfd', 'p309n_pfd']
     elif file_format == 'phcx':
-        child_dirs = ['pulsars','RFI']
+        child_dirs = ['pulsars_','RFI']
+        f_len = 16
+        t_len = 18
+        p_len = 64
     for child_dir in child_dirs:
         if not os.path.exists(cand_file_path+child_dir+'_attrs.pkl'):
             with open(cand_file_path+child_dir+'_attrs_aug.pkl','wb') as file:
@@ -115,20 +118,36 @@ def save_pulsar_attrs(cand_file_path, file_fotmat,data_augmentation = False):
                             if data_augmentation and 'pulsar' in child_dir:
                                 extend_data, extend_num = augmentate(cand.subbands,horizontal = True, vertical=True)
                                 sub_bands.extend(extend_data)
-                            sub_ints.append(cand.subints)
+
+                            Cur_subints = cand.subints
+                            Cur_subints_row, Cur_subints_col = Cur_subints.shape
+                            Cur_subints = Cur_subints[:t_len,:p_len]
+                            sub_ints.append(Cur_subints)
+
                             if data_augmentation and 'pulsar' in child_dir:
-                                extend_data, extend_num = augmentate(cand.subints, horizontal=True, vertical=True)
+                                extend_data, extend_num = augmentate(Cur_subints, horizontal=True, vertical=True)
                                 sub_ints.extend(extend_data)
+
                             bestdm.append(cand.dm)
                             if data_augmentation and 'pulsar' in child_dir:
                                 bestdm.extend([cand.dm]*extend_num)
+
                             cand_tp.append(cand.topo_period)
                             if data_augmentation and 'pulsar' in child_dir:
                                 cand_tp.extend([cand.topo_period]*extend_num)
+
                             cand_snr.append(cand.snr)
                             if data_augmentation and 'pulsar' in child_dir:
                                 cand_snr.extend([cand.snr]*extend_num)
                 print(len(sub_bands),len(sub_ints),len(bestdm),len(cand_tp),len(cand_snr))
+                for ele in sub_bands:
+                    ele_row, ele_col = ele.shape
+                    if ele_row!=f_len or ele_col!= p_len:
+                        print('row:',ele_row,'col:',ele_col)
+                for ele in sub_ints:
+                    ele_row, ele_col = ele.shape
+                    if ele_row != t_len or ele_col != p_len:
+                        print('row:', ele_row, 'col:', ele_col)
                 pickle.dump(sub_bands,file)
                 pickle.dump(sub_ints,file)
                 pickle.dump(bestdm,file)
