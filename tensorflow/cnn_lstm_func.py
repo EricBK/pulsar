@@ -91,6 +91,7 @@ BATCHSIZE = 50
 Hin = tf.placeholder(tf.float32, [None, CELLSIZE * NLAYERS])
 
 def LSTM_model():
+
     # LSTM model
     # 3层 GRU
     dropout_keep = 1.0
@@ -157,11 +158,10 @@ def evaluate(predict_lable, ground_truth_label, threshold):
 def save_result_file(results):
     Desfile = '.\\results.csv'
     csv_writer = csv.writer(open(Desfile,'w',newline=''),dialect='excel')
-    csv_writer.writerow(['threshold','TP','TN','FP','FN','accuracy','precision','recall','f_score'])
+    csv_writer.writerow(['lr','keep_prob','NLAYERS','epoch','threshold','TP','TN','FP','FN','accuracy','precision','recall','f_score'])
     for line in results:
         csv_writer.writerow(line)
 def main():
-    learning_rate = 0.001
     feature_cnn = cnn_model()
     feature_lstm,H = LSTM_model()
     # adding other attributes
@@ -173,94 +173,106 @@ def main():
     # Dense layer
     _, cnn_output_len = feature_cnn.shape
     _, lstm_output_len = feature_lstm.shape
-    print(cnn_output_len,lstm_output_len)
-    '''
-    mixed_W_fc1 = weight_variable([cnn_output_len+lstm_output_len,512])
-    mixed_b_fc1 = bias_variable([512])
-
-    mixed_h_fc1 = tf.nn.relu(tf.matmul(final_feature,mixed_W_fc1) + mixed_b_fc1)
-    # dropout
-    mixed_h_fc1_drop = tf.nn.dropout(mixed_h_fc1,cnn_keep_prob)
-    '''
-    # output layer
-    W_fc2 = weight_variable([512,2])
-    b_fc2 = bias_variable([2])
-
-    y_conv = tf.nn.softmax(tf.matmul(final_feature, W_fc2)+b_fc2)
-
-    # loss
-    cross_entropy = -tf.reduce_sum(y_ * tf.log(y_conv))
-    train_step = tf.train.AdamOptimizer(learning_rate).minimize(cross_entropy)
-
-    correct_predictin = tf.equal(tf.argmax(y_conv,1),tf.argmax(y_,1))
-    accuracy = tf.reduce_mean(tf.cast(correct_predictin,'float'))
-    istate = np.zeros([BATCHSIZE, CELLSIZE * NLAYERS])  # initial zero input state
-    sess.run(tf.initialize_all_variables())
-
-    def get_fit_cnn_input(input_list):
-        for sample_no in range(len(input_list)):
-            input_list[sample_no] = input_list[sample_no].reshape(f_len,p_len,1)
-        return np.asarray(input_list)
-    print('Training...')
-    for i in range(2000):
-        batch = all_Candidates.train.next_batch(BATCHSIZE)
-        cnn_input = get_fit_cnn_input(batch[0])
-        lstm_input = np.asarray(batch[1])
-        other_attrs = []
-        # dm
-        other_attrs.append(batch[2])
-        # period
-        other_attrs.append(batch[3])
-        other_attrs = np.asarray(other_attrs).T
-        # train_feed_dict = {X_subbands:cnn_input,X_subints:lstm_input,Hin:istate,y_:batch[4],cnn_other_attr:other_attrs, cnn_keep_prob:0.5}
-        train_feed_dict = {X_subbands:cnn_input,X_subints:lstm_input,Hin:istate,y_:batch[4], cnn_keep_prob:0.5}
-        '''
-        moving_avg_p = 10
-        Cur_acc == 0
-        if i==moving_avg_p:
-            Cur_acc = get_acc(session = sess, data = all_Candidates.validation)
-        '''
-        if i%10 == 0:
-            _, acc, y, outH = sess.run([train_step, accuracy, y_conv, H, ], feed_dict=train_feed_dict)
-            print("step:%d, training_accuracy: %g"%(i,acc))
-            #print(outH.shape)
-        _, acc, y, outH = sess.run([train_step, accuracy, y_conv, H, ], feed_dict=train_feed_dict)
 
 
-        #train_step.run(session = sess,feed_dict=feed_dict)
-        istate = outH
-    print('Testing...')
-    predict_lable = []
-    ground_truth_label = []
+    learning_rates = [0.001, 0.0001]
+    keep_probs = [0.4, 0.5, 0.6, 0.7]
     results = []
-    while True:
-        test_batch = all_Candidates.test.next_batch(BATCHSIZE)
-        other_attrs_test = []
-        # dm
-        other_attrs_test.append(test_batch[2])
-        # period
-        other_attrs_test.append(test_batch[3])
-        other_attrs_test = np.asarray(other_attrs_test).T
-        test_cnn_input = get_fit_cnn_input(test_batch[0])
-        test_lstm_input = test_batch[1]
-        test_y_ = test_batch[4]
-        ground_truth_label= append_to_label_list(ground_truth_label,test_y_)
-        # print(test_cnn_input.shape,np.asarray(test_lstm_input).shape,test_y_.shape)
-        # test_feed_dict = {X_subbands:test_cnn_input,X_subints:test_lstm_input,Hin:istate,y_:test_y_,cnn_other_attr:other_attrs_test,cnn_keep_prob:0.5}
-        test_feed_dict = {X_subbands:test_cnn_input,X_subints:test_lstm_input,Hin:istate,y_:test_y_,cnn_keep_prob:0.0}
+    #learning_rates = [0.01]
+    #keep_probs = [0.4]
+    n_batch = 2000
+    for learning_rate in learning_rates:
+        for keep_prob in keep_probs:
+            all_Candidates.train.reset()
+            all_Candidates.test.reset()
+            mixed_W_fc1 = weight_variable([int(cnn_output_len + lstm_output_len), 512])
+            mixed_b_fc1 = bias_variable([512])
 
-        #acc = accuracy.eval(feed_dict = test_feed_dict)
-        acc,y = sess.run([accuracy, y_conv], feed_dict=test_feed_dict)
-        predict_lable = append_to_label_list(predict_lable,y)
-        if all_Candidates.test.epoch_completed >=1:
-            print(acc)
-            print(len(ground_truth_label))
-            print(len(predict_lable))
-            for threshold in np.linspace(0,1,51):
-                sample_num, accuracy, precision, recall, F_score = evaluate(predict_lable, ground_truth_label, threshold)
-                print('sample_num',sample_num,'sum',sum(sample_num),'acc:',accuracy,'precision:',precision,'recall:',recall,'F_score:',F_score)
-                results.append([threshold,sample_num[0],sample_num[1],sample_num[2],sample_num[3],accuracy,precision,recall,F_score])
-            save_result_file(results)
-            break
+            mixed_h_fc1 = tf.nn.relu(tf.matmul(final_feature, mixed_W_fc1) + mixed_b_fc1)
+            # dropout
+            mixed_h_fc1_drop = tf.nn.dropout(mixed_h_fc1, cnn_keep_prob)
+
+            # output layer
+            W_fc2 = weight_variable([512, 2])
+            b_fc2 = bias_variable([2])
+
+            y_conv = tf.nn.softmax(tf.matmul(mixed_h_fc1_drop, W_fc2) + b_fc2)
+
+            # loss
+            cross_entropy = -tf.reduce_sum(y_ * tf.log(y_conv))
+            train_step = tf.train.AdamOptimizer(learning_rate).minimize(cross_entropy)
+
+            correct_predictin = tf.equal(tf.argmax(y_conv,1),tf.argmax(y_,1))
+            accuracy = tf.reduce_mean(tf.cast(correct_predictin,'float'))
+            istate = np.zeros([BATCHSIZE, CELLSIZE * NLAYERS])  # initial zero input state
+            sess.run(tf.initialize_all_variables())
+
+            def get_fit_cnn_input(input_list):
+                for sample_no in range(len(input_list)):
+                    input_list[sample_no] = input_list[sample_no].reshape(f_len,p_len,1)
+                return np.asarray(input_list)
+            print('Training...')
+            for i in range(n_batch):
+                batch = all_Candidates.train.next_batch(BATCHSIZE)
+                cnn_input = get_fit_cnn_input(batch[0])
+                lstm_input = np.asarray(batch[1])
+                other_attrs = []
+                # dm
+                other_attrs.append(batch[2])
+                # period
+                other_attrs.append(batch[3])
+                other_attrs = np.asarray(other_attrs).T
+                # train_feed_dict = {X_subbands:cnn_input,X_subints:lstm_input,Hin:istate,y_:batch[4],cnn_other_attr:other_attrs, cnn_keep_prob:0.5}
+                train_feed_dict = {X_subbands:cnn_input,X_subints:lstm_input,Hin:istate,y_:batch[4], cnn_keep_prob:keep_prob}
+                '''
+                moving_avg_p = 10
+                Cur_acc == 0
+                if i==moving_avg_p:
+                    Cur_acc = get_acc(session = sess, data = all_Candidates.validation)
+                '''
+                if i%10 == 0:
+                    _, acc, y, outH = sess.run([train_step, accuracy, y_conv, H, ], feed_dict=train_feed_dict)
+                    print("step:%d, training_accuracy: %g"%(i,acc))
+                    #print(outH.shape)
+                _, acc, y, outH = sess.run([train_step, accuracy, y_conv, H, ], feed_dict=train_feed_dict)
+
+
+                #train_step.run(session = sess,feed_dict=feed_dict)
+                istate = outH
+            print('Testing...')
+            predict_lable = []
+            ground_truth_label = []
+
+            while True:
+                test_batch = all_Candidates.test.next_batch(BATCHSIZE)
+                other_attrs_test = []
+                # dm
+                other_attrs_test.append(test_batch[2])
+                # period
+                other_attrs_test.append(test_batch[3])
+                other_attrs_test = np.asarray(other_attrs_test).T
+                test_cnn_input = get_fit_cnn_input(test_batch[0])
+                test_lstm_input = test_batch[1]
+                test_y_ = test_batch[4]
+                ground_truth_label= append_to_label_list(ground_truth_label,test_y_)
+                # print(test_cnn_input.shape,np.asarray(test_lstm_input).shape,test_y_.shape)
+                # test_feed_dict = {X_subbands:test_cnn_input,X_subints:test_lstm_input,Hin:istate,y_:test_y_,cnn_other_attr:other_attrs_test,cnn_keep_prob:0.5}
+                test_feed_dict = {X_subbands:test_cnn_input,X_subints:test_lstm_input,Hin:istate,y_:test_y_,cnn_keep_prob:1.0}
+
+                #acc = accuracy.eval(feed_dict = test_feed_dict)
+                acc,y = sess.run([accuracy, y_conv], feed_dict=test_feed_dict)
+                predict_lable = append_to_label_list(predict_lable,y)
+                if all_Candidates.test.epoch_completed >=1:
+                    print(acc)
+                    print(len(ground_truth_label))
+                    print(len(predict_lable))
+                    for threshold in np.linspace(0,1,51):
+                        sample_num, accuracy, precision, recall, F_score = evaluate(predict_lable, ground_truth_label, threshold)
+                        print('sample_num',sample_num,'sum',sum(sample_num),'acc:',accuracy,'precision:',precision,'recall:',recall,'F_score:',F_score)
+                        write_line = [learning_rate,keep_prob,NLAYERS]
+                        write_line.extend([all_Candidates.test.epoch_completed,threshold,sample_num[0],sample_num[1],sample_num[2],sample_num[3],accuracy,precision,recall,F_score])
+                        results.append(write_line)
+                    break
+    save_result_file(results)
 if __name__ == '__main__':
     main()
