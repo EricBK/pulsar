@@ -40,8 +40,8 @@ class Dataset(object):
     def periods(self):
         return self._periods
     @property
-    def lables(self):
-        return self._labels
+    def labels(self):
+        return dense_to_one_hot(self._labels,2)
     @property
     def epoch_completed(self):
         return self._epochs_completed
@@ -91,6 +91,10 @@ def get_sub_bands_ints_DMs(p_path, n_path):
         all_labels.extend([1]*len(p_subbands))
     with open(n_path, 'rb') as pklfile:
         print('正在读取：',n_path,'里面的数据文件...')
+        '''
+        pfd 的存放顺序是 subbands subints dm period label
+        phcx 的存放顺序是 subbnads subints dm period snr label
+        '''
         n_subbands = pickle.load(pklfile, encoding='iso-8859-1')
         all_subbands.extend(n_subbands)
         n_subints = pickle.load(pklfile, encoding='iso-8859-1')
@@ -111,34 +115,36 @@ def get_sub_bands_ints_DMs(p_path, n_path):
     f_len, p_len = all_subbands[0].shape
     t_len, p_len = all_subints[0].shape
     return [f_len,t_len,p_len],all_subbands, all_subints, all_DMs,all_periods, all_labels
-def read_data(Candidates_pos_path,Candidates_neg_path,test_part):
+def read_data(Candidates_pos_path,Candidates_neg_path,test_part,cand_file_format = 'pfd'):
     class Datasets(object):
         pass
     datasets = Datasets()
-    data_size,all_subbands,all_subints,all_DMs, all_periiods, all_labels = get_sub_bands_ints_DMs(Candidates_pos_path,Candidates_neg_path)
+    data_size,all_subbands,all_subints,all_DMs, all_periods, all_labels = get_sub_bands_ints_DMs(Candidates_pos_path,Candidates_neg_path)
     Candidates_num = len(all_subbands)
     samples_index = list(range(Candidates_num))
     train_subbands = [all_subbands[i] for i in samples_index[:int(Candidates_num*(1-test_part))]]
     train_subints = [all_subints[i] for i in samples_index[:int(Candidates_num*(1-test_part))]]
     train_DMs = [all_DMs[i] for i in samples_index[:int(Candidates_num*(1-test_part))]]
-    train_periods = [all_periiods[i] for i in samples_index[:int(Candidates_num*(1-test_part))]]
+    train_periods = [all_periods[i] for i in samples_index[:int(Candidates_num*(1-test_part))]]
     train_labels = [all_labels[i] for i in samples_index[:int(Candidates_num*(1-test_part))]]
 
     test_subbands = [all_subbands[i] for i in samples_index[int(Candidates_num*(1-test_part)):]]
     test_subints = [all_subints[i] for i in samples_index[int(Candidates_num*(1-test_part)):]]
     test_DMs = [all_DMs[i] for i in samples_index[int(Candidates_num*(1-test_part)):]]
-    test_periods = [all_periiods[i] for i in samples_index[int(Candidates_num*(1-test_part)):]]
-
+    test_periods = [all_periods[i] for i in samples_index[int(Candidates_num*(1-test_part)):]]
     test_labels = [all_labels[i] for i in samples_index[int(Candidates_num*(1-test_part)):]]
 
     datasets.train = Dataset(train_subbands,train_subints,train_DMs,train_periods, train_labels,data_size,is_fake_data=False)
     datasets.test = Dataset(test_subbands,test_subints,test_DMs,test_periods, test_labels,data_size,is_fake_data=False)
+
 
     return datasets
 
 if __name__ == '__main__':
     p_path = 'H:\\pg\\1-SKA\\Data\\p309\\pkl_files\\p309p_pfd_sub_band_int.pkl'
     n_path = 'H:\\pg\\1-SKA\\Data\\p309\\pkl_files\\p309n_pfd_sub_band_int.pkl'
-    all_data = read_data(p_path, n_path,test_part=0.3)
+    validation_part = 0.1
+    test_part = 0.2
+    all_data = read_data(p_path, n_path, test_part= test_part)
     train_data = all_data.train
     print(train_data.next_batch(20)[3])
