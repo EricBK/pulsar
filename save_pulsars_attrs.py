@@ -1,4 +1,5 @@
 # coding = utf-8
+# 需要用 python2
 import h5py
 import numpy as np
 import os
